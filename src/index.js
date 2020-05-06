@@ -1,42 +1,23 @@
-import React,{
-	Component
-} from 'react';
-import registerScreens from './screens';
-import {Navigation} from 'react-native-navigation';
-import { Theme } from "native-base-shoutem-theme";
-import getTheme from '../native-base-theme/components';
-import platform from '../native-base-theme/variables/platform';
-registerScreens();
+/*
+ * 初始化界面
+ * @Author: huangjun
+ * @Date: 2018-10-10 16:42:42
+ * @Last Modified by: huangjun
+ * @Last Modified time: 2020-04-19 15:31:29
+ */
+import React, {Component} from 'react';
+import {View} from 'react-native';
+import AppNavigator from './screens';
 
-const navigatorStyle = {
-	drawUnderNavBar:true,
-	navBarTextColor: 'white',
-	navBarButtonColor: 'white',
-	statusBarTextColorScheme: 'light',
-	statusBarColor:'#fff',
-};
-export default class App extends Component{
-	constructor(props) {
-		super(props);
-		this.initial();
-        Theme.setDefaultThemeStyle(getTheme(platform));
-
-	}
-	initial(){
-		Navigation.startSingleScreenApp({
-			screen: {
-				screen: 'ImDemo.Login',
-				title: '登录',
-				navigatorStyle: {
-					...navigatorStyle,
-					statusBarTextColorScheme: 'dark',
-					navBarBackgroundColor:'#444',
-					navBarHidden:true
-				}
-			},
-			appleStyle:{
-                statusBarColor:'#fff',
-			}
-		});
-	}
+export default class App extends Component {
+  constructor(props) {
+    super(props);
+  }
+  render() {
+    return (
+      <View style={{flex: 1}}>
+        <AppNavigator />
+      </View>
+    );
+  }
 }

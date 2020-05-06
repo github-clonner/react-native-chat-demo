@@ -1,173 +1,201 @@
+/*
+ * @选择位置
+ * @Author: huangjun
+ * @Date: 2018-10-10 16:21:39
+ * @Last Modified by: huangjun
+ * @Last Modified time: 2020-04-19 16:07:01
+ */
 import React from 'react';
-import {
-    StyleSheet,
-    Dimensions,
-} from 'react-native';
-
-import RNGeolocation from 'react-native-amap-geolocation';
-import Toast from 'react-native-simple-toast';
-import Geocoder from 'react-native-geocoder';
-import {MapView,Marker} from 'react-native-amap3d';
+import {StyleSheet, View, Text, PermissionsAndroid} from 'react-native';
+import Geolocation from 'react-native-amap-geolocation';
+import {RNToasty} from 'react-native-toasty';
+import {HeaderButtons} from 'react-navigation-header-buttons';
+import {MapView, Marker} from 'react-native-amap3d';
 
 export default class LocationPicker extends React.Component {
-    static navigatorStyle = {
-        tabBarHidden: true,
-        navBarButtonColor:"#fff",
-        navBarTextColor:"#fff",
-        statusBarTextColorScheme: 'light',
+  static navigationOptions = ({navigation}) => ({
+    title: '选择位置',
+    headerLeft: () => (
+      <HeaderButtons color="#037aff">
+        <HeaderButtons.Item
+          title="取消"
+          color="#037aff"
+          onPress={() => navigation.pop()}
+        />
+      </HeaderButtons>
+    ),
+    headerRight: () => (
+      <HeaderButtons color="#037aff">
+        <HeaderButtons.Item
+          title="发送"
+          color="#037aff"
+          onPress={navigation.getParam('handlerSend')}
+        />
+      </HeaderButtons>
+    ),
+  });
+  constructor(props) {
+    super(props);
+    this.state = {
+      isInitialized: false,
+      address: null,
+      title: '',
+      region: {
+        latitude: 23.121278,
+        longitude: 113.326536,
+      },
+      coordinate: {
+        latitude: 23.121278,
+        longitude: 113.326536,
+      },
     };
-    static navigatorButtons = {
-        leftButtons:[
-            {
-                title:'取消',
-                id:'cancel'
-            }
-        ],
-        rightButtons: [
-            {
-                title: '发送',
-                id: 'send',
-                showAsAction: 'ifRoom'
-            }
-        ]
+  }
+
+  handleSend = () => {
+    const {navigation} = this.props;
+    const {onLocation} = navigation.state.params;
+    if (
+      !this.state.region ||
+      !this.state.region.latitude ||
+      !this.state.address
+    ) {
+      RNToasty.Show({
+        title: '获取当前位置失败',
+      });
+      return;
+    }
+    onLocation &&
+      onLocation({
+        latitude: `${this.state.region.latitude}`,
+        longitude: `${this.state.region.longitude}`,
+        address: this.state.address,
+      });
+    navigation.pop();
+  };
+  componentDidMount() {
+    this.props.navigation.setParams({
+      handlerSend: this.handleSend,
+    });
+  }
+  async getLocation() {
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+    );
+
+    if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+      await Geolocation.init({
+        ios: '',
+        android: '',
+      });
+
+      Geolocation.setOptions({
+        interval: 8000,
+        distanceFilter: 20,
+      });
+
+      Geolocation.addLocationListener((location) => {
+        this.setState({
+          region: {
+            latitude: location.latitude,
+            longitude: location.longitude,
+          },
+          coordinate: {
+            latitude: location.latitude,
+            longitude: location.longitude,
+          },
+          title: location.poiName,
+          address: location.address,
+        });
+      });
+      Geolocation.start();
+    }
+  }
+  _onDragEnd = (e) => {
+    const {longitude, latitude} = e.nativeEvent;
+    this.setState({
+      region: {
+        latitude,
+        longitude,
+      },
+      // title: data.pois.name || data.street,
+      // address: data.address,
+    });
+  };
+  renderMarker() {
+    if (this.state.address) {
+      return (
+        <Marker
+          draggable
+          active
+          centerOffset={{x: 0, y: 18}}
+          clickable={false}
+          onDragEnd={this._onDragEnd}
+          title={this.state.title}
+          // description={this.state.address}
+          coordinate={this.state.region}>
+          <View style={styles.custom}>
+            <View style={styles.customInfoWindow}>
+              <Text style={{fontWeight: '600', lineHeight: 25}}>
+                {this.state.title}
+              </Text>
+              <Text>{this.state.address}</Text>
+            </View>
+            <View style={styles.triangleDown} />
+          </View>
+        </Marker>
+      );
+    }
+    return null;
+  }
+  render() {
+    const onViewLayout = (e) => {
+      const {layout} = e.nativeEvent;
+      if (layout.height === 0) {
+        return;
+      }
+      this.setState({
+        isInitialized: true,
+      });
     };
-    constructor(props) {
-        super(props);
-        this.state = {
-            loading: false,
-            address:"loading...",
-            feature:"",
-            region:{
-                latitude:0,
-                longitude:0
-            },
-            coordinate:{
-                latitude:0,
-                longitude:0
-            }
-        };
-
-        this.props.navigator.setOnNavigatorEvent(this.onNavigatorEvent.bind(this));
+    if (this.state.isInitialized) {
+      return (
+        <MapView
+          showsZoomControls
+          showsLocationButton
+          zoomLevel={20}
+          coordinate={this.state.coordinate}
+          style={StyleSheet.absoluteFill}>
+          {this.renderMarker()}
+        </MapView>
+      );
     }
-
-    handleSend() {
-        if (!this.state.coords) {
-            Toast.show('获取当前位置失败');
-            return;
-        }
-        this.props.onLocation && this.props.onLocation(this.state.coords);
-        this.props.navigator.dismissModal();
-
-    }
-    getGeocoder({latitude,longitude}){
-        let location = {lat:latitude, lng:longitude};
-        this.setState({
-            feature:'',
-            address:'loading...',
-            streetName:''
-        });
-        Geocoder.geocodePosition(location)
-            .then((res) => {
-                console.log("geocode position:", res);
-                if (res.length > 0) {
-                 this.setState({
-                     feature:res[0].feature,
-                     address:res[0].formattedAddress,
-                     streetName:res[0].streetName,
-                     coords:{
-                         longitude:longitude+"",
-                         latitude:latitude+"",
-                         address:res[0].formattedAddress
-                     }
-                 });
-                }
-            })
-            .catch(err => {
-                console.log("geocode error:", err);
-            })
-    }
-    onNavigatorEvent(event) {
-        if (event.type === 'NavBarButtonPress') {
-            if (event.id === 'send') {
-                this.handleSend();
-            }
-            if (event.id === 'cancel') {
-                this.props.navigator.dismissModal();
-            }
-        }
-    }
-    componentWillMount() {
-        RNGeolocation.getLocation().then(data=>{
-            if(data){
-                this.setState({
-                    region: {
-                        latitude: data.latitude,
-                        longitude: data.longitude,
-                    },
-                    coordinate:{
-                        latitude: data.latitude,
-                        longitude: data.longitude,
-                    },
-                    title:"",
-                    loading:false,
-                });
-                this.getGeocoder({
-                    latitude: data.latitude,
-                    longitude: data.longitude,
-                });
-            }
-        });
-    }
-    _onLocation = (e) => {
-        let { longitude, latitude, } = e.nativeEvent;
-        this.setState({
-            coordinate: {
-                latitude: latitude,
-                longitude: longitude,
-            }
-        });
-    }
-    _onDragEnd= (e) => {
-        let { longitude, latitude } = e.nativeEvent;
-        this.setState({
-            region: {
-                latitude: latitude,
-                longitude: longitude,
-            }
-        });
-        this.getGeocoder(e.nativeEvent)
-    }
-    renderMarker(){
-        if(this.state.streetName || this.state.feature){
-            return (
-                <Marker
-                    icon='green'
-                    draggable
-                    active
-                    clickable={false}
-                    onDragEnd={this._onDragEnd}
-                    title={this.state.feature || this.state.streetName}
-                    description={this.state.address}
-                    coordinate={this.state.region}
-                />
-            )
-        }
-    }
-    render() {
-
-        return (
-            <MapView
-                showsZoomControls
-                showsLocationButton
-                zoomLevel={19}
-                // locationEnabled
-                // onLocation={this._onLocation}
-                coordinate={this.state.coordinate}
-                style={StyleSheet.absoluteFill}>
-                {this.renderMarker()}
-            </MapView>
-        );
-    }
+    return <View style={{flex: 1}} onLayout={onViewLayout} />;
+  }
 }
-const deviceWidth = Dimensions.get('window').width;
-const deviceHeight = Dimensions.get('window').height;
+const styles = StyleSheet.create({
+  custom: {
+    backgroundColor: 'transparent',
+    marginBottom: 5,
+    alignItems: 'center',
+  },
+  customInfoWindow: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    elevation: 4,
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingBottom: 10,
+    paddingTop: 5,
+  },
+  triangleDown: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightWidth: 8,
+    borderRightColor: 'transparent',
+    borderTopWidth: 16,
+    borderTopColor: '#fff',
+    alignSelf: 'center',
+  },
+});
